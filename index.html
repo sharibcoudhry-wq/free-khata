@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Digital Bill & POS</title>
+  <!-- QR Code Library CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #f8fafc; color: #0f172a; padding: 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 680px; background: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); padding: 24px; border: 1px solid #e2e8f0; }
+    
+    /* Header & Branding */
+    .header-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #e2e8f0; padding-bottom: 16px; margin-bottom: 16px; }
+    .logo-container { display: flex; align-items: center; gap: 12px; }
+    .logo-preview { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: #f1f5f9; border: 1px solid #cbd5e1; display: none; }
+    .invoice-meta { text-align: right; font-size: 13px; color: #64748b; }
+    .invoice-meta strong { color: #0f172a; font-size: 15px; }
+
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin: 14px 0 8px 0; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; background: #fff; }
+    input:focus { border-color: #2563eb; ring: 2px solid #93c5fd; }
+
+    /* Items Table */
+    .item-header { display: grid; grid-template-columns: 2.5fr 1fr 1.2fr auto; gap: 8px; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; padding: 0 4px; }
+    .item-row { display: grid; grid-template-columns: 2.5fr 1fr 1.2fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .btn-remove { background: #fee2e2; color: #ef4444; border: none; border-radius: 8px; width: 36px; height: 38px; cursor: pointer; font-weight: bold; font-size: 16px; }
+    .btn-add { background: #eff6ff; border: 1px dashed #3b82f6; color: #1d4ed8; width: 100%; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-bottom: 16px; }
+
+    /* Summary & Tax */
+    .summary-card { background: #f8fafc; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; margin-bottom: 16px; }
+    .calc-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 8px; }
+    .calc-input { width: 70px; padding: 4px 8px; text-align: right; border-radius: 6px; }
+    .total-divider { border-top: 2px dashed #cbd5e1; margin: 10px 0; }
+    .grand-total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; color: #0f172a; }
+
+    /* QR Code Section */
+    .payment-section { display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; }
+    .qr-text { font-size: 13px; color: #475569; }
+    .qr-box { background: white; padding: 6px; border-radius: 8px; border: 1px solid #cbd5e1; }
+    #qrcode img { display: block; }
+
+    /* Action Buttons */
+    .btn-group { display: flex; gap: 10px; }
+    .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; }
+    .btn-wa { background: #22c55e; color: #ffffff; }
+    .btn-wa:hover { background: #16a34a; }
+    .btn-print { background: #0f172a; color: #ffffff; }
+
+    /* Print Styling */
+    @media print {
+      body { background: #ffffff; padding: 0; }
+      .container { box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; }
+      .no-print { display: none !important; }
+      input { border: none !important; padding: 2px !important; }
+      .item-row { border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header-bar">
+    <div class="logo-container">
+      <img id="logoPreview" class="logo-preview" alt="Logo">
+      <div>
+        <h2 id="displayShopName" style="font-size: 20px; font-weight: 700;">Apni Dukan</h2>
+        <span style="font-size: 12px; color: #64748b;" id="displayShopPhone">Contact: Not set</span>
+      </div>
+    </div>
+    <div class="invoice-meta">
+      <div>Bill No: <strong id="invNumber">#INV-1001</strong></div>
+      <div id="invDate">01 Jan 2026</div>
+    </div>
+  </div>
+
+  <!-- Shop Settings (Collapsible / Customizable) -->
+  <div class="no-print">
+    <div class="section-title">Shop Details & Settings</div>
+    <div class="grid-2">
+      <input type="text" id="shopName" placeholder="Dukan ka Naam" value="Apni Dukan" oninput="updateShopInfo()">
+      <input type="tel" id="shopPhone" placeholder="Dukan Mobile No." oninput="updateShopInfo()">
+    </div>
+    <div class="grid-2">
+      <input type="text" id="upiId" placeholder="UPI ID (e.g. mobile@upi)" oninput="generatePaymentQR()">
+      <input type="file" id="logoInput" accept="image/*" onchange="loadLogo(event)">
+    </div>
+  </div>
+
+  <!-- Customer Info -->
+  <div class="section-title">Customer Details</div>
+  <div class="grid-2">
+    <input type="text" id="custName" placeholder="Grahak ka Naam">
+    <input type="tel" id="custPhone" placeholder="WhatsApp No. (e.g. 9876543210)">
+  </div>
+
+  <!-- Items -->
+  <div class="section-title">Billing Items</div>
+  <div class="item-header no-print">
+    <span>Item Description</span>
+    <span>Qty</span>
+    <span>Rate (₹)</span>
+    <span></span>
+  </div>
+  <div id="itemsList">
+    <div class="item-row">
+      <input type="text" class="item-name" placeholder="Item Name">
+      <input type="number" class="item-qty" placeholder="Qty" value="1" min="1" oninput="calculateTotal()">
+      <input type="number" class="item-price" placeholder="Price" oninput="calculateTotal()">
+      <button class="btn-remove no-print" onclick="removeItem(this)">✕</button>
+    </div>
+  </div>
+
+  <button class="btn-add no-print" onclick="addItem()">+ Naya Item Jodein</button>
+
+  <!-- Calculations -->
+  <div class="summary-card">
+    <div class="calc-row">
+      <span>Subtotal:</span>
+      <span id="subTotal" style="font-weight: 600;">₹0</span>
+    </div>
+    <div class="calc-row no-print">
+      <span>Discount (%):</span>
+      <input type="number" id="discountPercent" class="calc-input" placeholder="0" min="0" max="100" oninput="calculateTotal()">
+    </div>
+    <div class="calc-row no-print">
+      <span>GST / Tax (%):</span>
+      <input type="number" id="taxPercent" class="calc-input" placeholder="0" min="0" oninput="calculateTotal()">
+    </div>
+    <div class="total-divider"></div>
+    <div class="grand-total-row">
+      <span>Grand Total:</span>
+      <span id="grandTotal" style="color: #2563eb;">₹0</span>
+    </div>
+  </div>
+
+  <!-- UPI QR Code Box -->
+  <div class="payment-section" id="paymentSection" style="display: none;">
+    <div class="qr-text">
+      <strong style="color: #0f172a;">Scan karke Pay karein</strong><br>
+      Direct UPI se instant payment
+    </div>
+    <div class="qr-box">
+      <div id="qrcode"></div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="btn-group no-print">
+    <button class="btn-action btn-wa" onclick="sendWhatsApp()">💬 Send WhatsApp Bill</button>
+    <button class="btn-action btn-print" onclick="window.print()">📄 Save PDF / Print</button>
+  </div>
+</div>
+
+<script>
+  let qrInstance = null;
+
+  // Auto Invoice & Date on Load
+  window.onload = function() {
+    const randomInv = Math.floor(1000 + Math.random() * 9000);
+    document.getElementById('invNumber').innerText = '#INV-' + randomInv;
+    
+    const options = { day: '2-digit', month: 'short', year: 'numeric' };
+    document.getElementById('invDate').innerText = new Date().toLocaleDateString('en-IN', options);
+  };
+
+  function updateShopInfo() {
+    const name = document.getElementById('shopName').value.trim() || 'Apni Dukan';
+    const phone = document.getElementById('shopPhone').value.trim();
+    document.getElementById('displayShopName').innerText = name;
+    document.getElementById('displayShopPhone').innerText = phone ? 'Contact: ' + phone : 'Contact: Not set';
+    generatePaymentQR();
+  }
+
+  function loadLogo(event) {
+    const preview = document.getElementById('logoPreview');
+    const file = event.target.files[0];
+    if (file) {
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = 'block';
+    }
+  }
+
+  function addItem() {
+    const div = document.createElement('div');
+    div.className = 'item-row';
+    div.innerHTML = `
+      <input type="text" class="item-name" placeholder="Item Name">
+      <input type="number" class="item-qty" placeholder="Qty" value="1" min="1" oninput="calculateTotal()">
+      <input type="number" class="item-price" placeholder="Price" oninput="calculateTotal()">
+      <button class="btn-remove no-print" onclick="removeItem(this)">✕</button>
+    `;
+    document.getElementById('itemsList').appendChild(div);
+  }
+
+  function removeItem(btn) {
+    const rows = document.querySelectorAll('.item-row');
+    if (rows.length > 1) {
+      btn.parentElement.remove();
+      calculateTotal();
+    }
+  }
+
+  function calculateTotal() {
+    let subtotal = 0;
+    const names = document.querySelectorAll('.item-name');
+    const qtys = document.querySelectorAll('.item-qty');
+    const prices = document.querySelectorAll('.item-price');
+
+    for (let i = 0; i < names.length; i++) {
+      const q = parseFloat(qtys[i].value) || 0;
+      const p = parseFloat(prices[i].value) || 0;
+      subtotal += (q * p);
+    }
+
+    const discountP = parseFloat(document.getElementById('discountPercent').value) || 0;
+    const taxP = parseFloat(document.getElementById('taxPercent').value) || 0;
+
+    let finalAmount = subtotal - (subtotal * (discountP / 100));
+    finalAmount += finalAmount * (taxP / 100);
+    finalAmount = Math.round(finalAmount);
+
+    document.getElementById('subTotal').innerText = '₹' + subtotal;
+    document.getElementById('grandTotal').innerText = '₹' + finalAmount;
+
+    generatePaymentQR(finalAmount);
+  }
+
+  function generatePaymentQR(amount) {
+    const upi = document.getElementById('upiId').value.trim();
+    const qrSection = document.getElementById('paymentSection');
+    const qrDiv = document.getElementById('qrcode');
+
+    if (!amount) {
+      const totalStr = document.getElementById('grandTotal').innerText.replace('₹', '');
+      amount = parseFloat(totalStr) || 0;
+    }
+
+    if (upi && amount > 0) {
+      qrSection.style.display = 'flex';
+      qrDiv.innerHTML = '';
+      
+      const shop = encodeURIComponent(document.getElementById('shopName').value.trim() || 'Store');
+      const upiUrl = `upi://pay?pa=${upi}&pn=${shop}&am=${amount}&cu=INR`;
+
+      qrInstance = new QRCode(qrDiv, {
+        text: upiUrl,
+        width: 80,
+        height: 80,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } else {
+      qrSection.style.display = 'none';
+    }
+  }
+
+  function sendWhatsApp() {
+    const shop = document.getElementById('shopName').value.trim() || 'Store';
+    const cust = document.getElementById('custName').value.trim() || 'Customer';
+    let phone = document.getElementById('custPhone').value.trim();
+    const total = document.getElementById('grandTotal').innerText;
+    const invNo = document.getElementById('invNumber').innerText;
+    const date = document.getElementById('invDate').innerText;
+
+    if (!phone) {
+      alert('Kripya Customer ka WhatsApp number enter karein.');
+      return;
+    }
+
+    phone = phone.replace(/[^0-9]/g, '');
+    if (phone.length === 10) phone = '91' + phone;
+
+    let itemsText = '';
+    const names = document.querySelectorAll('.item-name');
+    const qtys = document.querySelectorAll('.item-qty');
+    const prices = document.querySelectorAll('.item-price');
+
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i].value.trim();
+      const q = qtys[i].value;
+      const p = prices[i].value;
+      if (name) {
+        itemsText += `\n• ${name} (x${q}) - ₹${q * p}`;
+      }
+    }
+
+    const upi = document.getElementById('upiId').value.trim();
+    let upiText = upi ? `\n💳 *Pay via UPI:* ${upi}` : '';
+
+    const msg = `🧾 *INVOICE: ${invNo}*\n📅 *Date:* ${date}\n🏪 *Store:* ${shop}\n👤 *Customer:* ${cust}\n------------------------${itemsText}\n------------------------\n💰 *Total Amount:* ${total}${upiText}\n\nDhanyawad! Have a great day! ✨`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+</script>
+
+</body>
+</html>
